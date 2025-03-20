@@ -45,7 +45,6 @@ jobs:
       - name: Setup | Install | mdbook-admonish
         run: |
           cargo binstall -y mdbook-admonish
-          cd guide
           mdbook-admonish install
 
       - name: Setup Pages
