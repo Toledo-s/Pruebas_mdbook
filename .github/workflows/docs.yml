@@ -1,0 +1,45 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - "main"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ~/.cargo/bin
+            /tmp/cargo-install-target-dir
+          # We reuse the cache from our detailed test environment, if available
+          key: detailed-test-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install mdbook
+        env:
+          CARGO_TARGET_DIR: "/tmp/cargo-install-target-dir"
+        run: ./scripts/install-mdbook
+      - name: Install mdbook extras
+        env:
+          CARGO_TARGET_DIR: "/tmp/cargo-install-target-dir"
+        run: ./book/scripts/install-mdbook-extras
+      - name: Build book
+        run: ./scripts/build-book
+      - name: Push docs
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: book/book

@@ -1,0 +1,119 @@
+on: [pull_request]
+
+name: check
+
+jobs:
+  # Fast test before we kick off all the other jobs
+  fast-test:
+    name: Fast test
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Cache build files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: fast-test-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Install more toolchain
+        run: rustup component add rustfmt clippy
+      - name: Run tests
+        run: cargo clippy --all-targets -- -D warnings && cargo fmt -- --check && cargo test
+
+  # Test, and also do other things like doctests and examples
+  detailed-test:
+    needs: fast-test
+    name: Test main target
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Cache build files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+            ~/.cargo/bin
+            /tmp/cargo-install-target-dir
+          key: detailed-test-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Install node toolchain
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "yarn"
+          cache-dependency-path: compile_assets/yarn.lock
+      - name: Install additional test dependencies
+        env:
+          CARGO_TARGET_DIR: "/tmp/cargo-install-target-dir"
+        run: ./scripts/install
+      - name: Run check script
+        run: ./scripts/check
+
+  # Test on all supported platforms
+  test:
+    needs: fast-test
+    name: Test all other targets
+    strategy:
+      matrix:
+        os:
+          - ubuntu-20.04
+        rust:
+          - stable
+          - beta
+          - 1.76.0
+        experimental:
+          - false
+        include:
+          # Run a canary test on nightly that's allowed to fail
+          - os: ubuntu-20.04
+            rust: nightly
+            experimental: true
+          # Test only stable on Windows, presume we'd get same result on other
+          # versions as Linux
+          - os: windows-2022
+            rust: stable
+            experimental: false
+        exclude:
+          # Don't bother retesting stable linux, we did it in the comprehensive test
+          - os: ubuntu-20.04
+            rust: stable
+            experimental: false
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental }}
+    steps:
+      # This is required, otherwise we get files with CRLF on Windows
+      # Which causes tests relying on data loaded from files to fail
+      - name: Set git to use LF everywhere
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+      - name: Checkout sources
+        uses: actions/checkout@v4
+      - name: Cache build files
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: test-${{ matrix.os }}-${{ matrix.rust }}-cargo-${{ hashFiles('**/Cargo.toml') }}
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Run tests
+        run: cargo test
