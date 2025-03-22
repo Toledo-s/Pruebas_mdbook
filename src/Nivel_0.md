@@ -31,3 +31,9 @@ A beautifully styled message.
 ```
 
 Por último copia la clave para usarla para pasar al siguiente nivel.
+
+<!-- src/your-chapter.md -->
+
+And now, a _quiz_:
+
+{{#quiz ../quizzes/rust-variables.toml}}
