@@ -47,6 +47,9 @@ jobs:
           cargo binstall -y mdbook-admonish
           mdbook-admonish install
 
+      - name: Install mdbook-quiz
+        run: cargo install --path crates/mdbook-quiz --debug --locked
+
       - name: Setup Pages
         id: pages
         uses: actions/configure-pages@v5
